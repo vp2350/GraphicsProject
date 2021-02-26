@@ -1,6 +1,5 @@
 #include "Game.h"
 #include "Vertex.h"
-
 // Needed for a helper function to read compiled shader files from the hard drive
 #pragma comment(lib, "d3dcompiler.lib")
 #include <d3dcompiler.h>
@@ -57,8 +56,20 @@ void Game::Init()
 	// geometry to draw and some simple camera matrices.
 	//  - You'll be expanding and/or replacing these later
 	LoadShaders();
-	CreateBasicGeometry();
+	CreateMeshes();
+	unsigned int size = sizeof(VertexShaderExternalData);
+	size = (size + 15) / 16 * 16;
 	
+	transform.SetPosition(0.5f, 0, 0);
+
+	D3D11_BUFFER_DESC cbDesc = {}; 
+	// Setsstruct to all zeros
+	cbDesc.BindFlags= D3D11_BIND_CONSTANT_BUFFER;
+	cbDesc.ByteWidth= size; // Must be a multiple of 16
+	cbDesc.CPUAccessFlags= D3D11_CPU_ACCESS_WRITE;
+	cbDesc.Usage= D3D11_USAGE_DYNAMIC;
+
+	device->CreateBuffer(&cbDesc, 0, constantBufferVS.GetAddressOf());
 	// Tell the input assembler stage of the pipeline what kind of
 	// geometric primitives (points, lines or triangles) we want to draw.  
 	// Essentially: "What kind of shape should the GPU draw with our data?"
@@ -141,7 +152,7 @@ void Game::LoadShaders()
 // --------------------------------------------------------
 // Creates the geometry we're going to draw - a single triangle for now
 // --------------------------------------------------------
-void Game::CreateBasicGeometry()
+void Game::CreateMeshes()
 {
 	// Create some temporary variables to represent colors
 	// - Not necessary, just makes things more readable
@@ -175,48 +186,42 @@ void Game::CreateBasicGeometry()
 	// - But just to see how it's done...
 	unsigned int indices[] = { 0, 1, 2 };
 
+	Vertex vertices1[] =
+	{
+		{ XMFLOAT3(+0.75f, +0.75f, +0.0f), red },
+		{ XMFLOAT3(+0.75f, +0.25f, +0.0f), blue },
+		{ XMFLOAT3(+0.25f, +0.25f, +0.0f), green },
+		{ XMFLOAT3(+0.25f, +0.75f, +0.0f), red }
+	};
 
-	// Create the VERTEX BUFFER description -----------------------------------
-	// - The description is created on the stack because we only need
-	//    it to create the buffer.  The description is then useless.
-	D3D11_BUFFER_DESC vbd;
-	vbd.Usage = D3D11_USAGE_IMMUTABLE;
-	vbd.ByteWidth = sizeof(Vertex) * 3;       // 3 = number of vertices in the buffer
-	vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER; // Tells DirectX this is a vertex buffer
-	vbd.CPUAccessFlags = 0;
-	vbd.MiscFlags = 0;
-	vbd.StructureByteStride = 0;
+	unsigned int indices1[] = { 0, 1, 2, 0, 2, 3 };
 
-	// Create the proper struct to hold the initial vertex data
-	// - This is how we put the initial data into the buffer
-	D3D11_SUBRESOURCE_DATA initialVertexData;
-	initialVertexData.pSysMem = vertices;
+	Vertex vertices2[] =
+	{
+		{ XMFLOAT3(-0.25f, +0.5f, +0.0f), red },
+		{ XMFLOAT3(-0.25f, +0.00f, +0.0f), blue },
+		{ XMFLOAT3(-0.75f, +0.00f, +0.0f), green },
+		{ XMFLOAT3(-0.75f, +0.50f, +0.0f), red },
+		{ XMFLOAT3(-0.50f, +1.00f, +0.0f), blue }
 
-	// Actually create the buffer with the initial data
-	// - Once we do this, we'll NEVER CHANGE THE BUFFER AGAIN
-	device->CreateBuffer(&vbd, &initialVertexData, vertexBuffer.GetAddressOf());
+	};
 
+	unsigned int indices2[] = { 0, 1, 2, 0, 2, 3, 0, 3, 4 };
 
+	newMesh1 = std::shared_ptr<Mesh>(new Mesh(vertices, 3, indices, 3, device));
+	newMesh2 = std::shared_ptr<Mesh>(new Mesh(vertices1, 4, indices1, 6, device));
+	newMesh3 = std::shared_ptr<Mesh>(new Mesh(vertices2, 5, indices2, 9, device));
 
-	// Create the INDEX BUFFER description ------------------------------------
-	// - The description is created on the stack because we only need
-	//    it to create the buffer.  The description is then useless.
-	D3D11_BUFFER_DESC ibd;
-	ibd.Usage = D3D11_USAGE_IMMUTABLE;
-	ibd.ByteWidth = sizeof(unsigned int) * 3;	// 3 = number of indices in the buffer
-	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;	// Tells DirectX this is an index buffer
-	ibd.CPUAccessFlags = 0;
-	ibd.MiscFlags = 0;
-	ibd.StructureByteStride = 0;
-
-	// Create the proper struct to hold the initial index data
-	// - This is how we put the initial data into the buffer
-	D3D11_SUBRESOURCE_DATA initialIndexData;
-	initialIndexData.pSysMem = indices;
-
-	// Actually create the buffer with the initial data
-	// - Once we do this, we'll NEVER CHANGE THE BUFFER AGAIN
-	device->CreateBuffer(&ibd, &initialIndexData, indexBuffer.GetAddressOf());
+	newEntity1 = std::shared_ptr<Entity>(new Entity(newMesh1));
+	entityVector.push_back(newEntity1);
+	newEntity2 = std::shared_ptr<Entity>(new Entity(newMesh1));
+	entityVector.push_back(newEntity2);
+	newEntity3 = std::shared_ptr<Entity>(new Entity(newMesh1));
+	entityVector.push_back(newEntity3);
+	newEntity4 = std::shared_ptr<Entity>(new Entity(newMesh2));
+	entityVector.push_back(newEntity4);
+	newEntity5 = std::shared_ptr<Entity>(new Entity(newMesh3));
+	entityVector.push_back(newEntity5);
 
 }
 
@@ -237,8 +242,21 @@ void Game::OnResize()
 void Game::Update(float deltaTime, float totalTime)
 {
 	// Quit if the escape key is pressed
-	if (GetAsyncKeyState(VK_ESCAPE))
+	if (GetAsyncKeyState(VK_ESCAPE)) {
 		Quit();
+	}
+
+	//transform.SetPosition(0.5f, 0, 0);
+	transform.MoveAbsolute(deltaTime * 0.1f, 0, 0);
+	transform.Rotate(0, 0, deltaTime * 0.1f);
+
+	float sinTime = (sin(totalTime * 10.0f)) / 100.0f;
+	(entityVector[0]->GetTransformation())->MoveAbsolute(deltaTime * 0.1f, 0, 0);
+	(entityVector[1]->GetTransformation())->SetPosition(0.5f, 0, 0);
+	(entityVector[2]->GetTransformation())->Scale(deltaTime, 2.0f, 2.0f);
+	(entityVector[3]->GetTransformation())->Rotate(0, 0.0f, deltaTime);
+	(entityVector[4]->GetTransformation())->SetRotation(0.0f, 0.0f, 20.0f);
+
 }
 
 // --------------------------------------------------------
@@ -246,6 +264,23 @@ void Game::Update(float deltaTime, float totalTime)
 // --------------------------------------------------------
 void Game::Draw(float deltaTime, float totalTime)
 {
+	VertexShaderExternalData vsData;
+	vsData.colorTint = XMFLOAT4(1.0f, 0.2f, 0.2f, 1.0f);
+	vsData.worldMatrix = (entityVector[0]->GetTransformation())->GetWorldMatrix();
+
+	D3D11_MAPPED_SUBRESOURCE mappedBuffer = {};
+	context->Map(constantBufferVS.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
+
+	memcpy(mappedBuffer.pData, &vsData, sizeof(vsData));
+
+	context->Unmap(constantBufferVS.Get(), 0);
+
+	context->VSSetConstantBuffers(
+		0,		//Slot to bind buffer to (using b0 in the shader, should match)
+		1,		//How many we are activating
+		constantBufferVS.GetAddressOf()
+	);
+
 	// Background color (Cornflower Blue in this case) for clearing
 	const float color[4] = { 0.4f, 0.6f, 0.75f, 0.0f };
 
@@ -284,22 +319,113 @@ void Game::Draw(float deltaTime, float totalTime)
 	//    in a larger application/game
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
-	context->IASetVertexBuffers(0, 1, vertexBuffer.GetAddressOf(), &stride, &offset);
-	context->IASetIndexBuffer(indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
 
+	context->IASetVertexBuffers(0, 1, ((entityVector[0]->GetMesh())->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
+	context->IASetIndexBuffer((entityVector[0]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
 
 	// Finally do the actual drawing
 	//  - Do this ONCE PER OBJECT you intend to draw
 	//  - This will use all of the currently set DirectX "stuff" (shaders, buffers, etc)
 	//  - DrawIndexed() uses the currently set INDEX BUFFER to look up corresponding
 	//     vertices in the currently set VERTEX BUFFER
+	// Offset to add to each index when looking up vertices
 	context->DrawIndexed(
-		3,     // The number of indices to use (we could draw a subset if we wanted)
+		entityVector[0]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
 		0,     // Offset to the first index we want to use
-		0);    // Offset to add to each index when looking up vertices
+		0);
 
 
 
+
+	vsData.worldMatrix = (entityVector[1]->GetTransformation())->GetWorldMatrix();
+	mappedBuffer = {};
+	context->Map(constantBufferVS.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
+
+	memcpy(mappedBuffer.pData, &vsData, sizeof(vsData));
+
+	context->Unmap(constantBufferVS.Get(), 0);
+	context->VSSetConstantBuffers(
+		0,		//Slot to bind buffer to (using b0 in the shader, should match)
+		1,		//How many we are activating
+		constantBufferVS.GetAddressOf()
+	);
+	context->IASetVertexBuffers(0, 1, (entityVector[1]->GetMesh()->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
+	context->IASetIndexBuffer((entityVector[1]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
+	
+	context->DrawIndexed(
+		entityVector[1]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
+	
+
+
+
+	vsData.worldMatrix = (entityVector[2]->GetTransformation())->GetWorldMatrix();
+	mappedBuffer = {};
+	context->Map(constantBufferVS.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
+
+	memcpy(mappedBuffer.pData, &vsData, sizeof(vsData));
+
+	context->Unmap(constantBufferVS.Get(), 0);
+	context->VSSetConstantBuffers(
+		0,		//Slot to bind buffer to (using b0 in the shader, should match)
+		1,		//How many we are activating
+		constantBufferVS.GetAddressOf()
+	);
+	context->IASetVertexBuffers(0, 1, (entityVector[2]->GetMesh()->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
+	context->IASetIndexBuffer((entityVector[2]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
+	
+	context->DrawIndexed(
+		entityVector[2]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
+	
+
+
+
+	vsData.worldMatrix = entityVector[3]->GetTransformation()->GetWorldMatrix();
+	mappedBuffer = {};
+	context->Map(constantBufferVS.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
+
+	memcpy(mappedBuffer.pData, &vsData, sizeof(vsData));
+
+	context->Unmap(constantBufferVS.Get(), 0);
+	context->VSSetConstantBuffers(
+		0,		//Slot to bind buffer to (using b0 in the shader, should match)
+		1,		//How many we are activating
+		constantBufferVS.GetAddressOf()
+	);
+	context->IASetVertexBuffers(0, 1, (entityVector[3]->GetMesh()->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
+	context->IASetIndexBuffer((entityVector[3]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
+	
+	context->DrawIndexed(
+		entityVector[3]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
+	
+
+
+
+	vsData.worldMatrix = entityVector[4]->GetTransformation()->GetWorldMatrix();
+	mappedBuffer = {};
+	context->Map(constantBufferVS.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
+
+	memcpy(mappedBuffer.pData, &vsData, sizeof(vsData));
+
+	context->Unmap(constantBufferVS.Get(), 0);
+	context->VSSetConstantBuffers(
+		0,		//Slot to bind buffer to (using b0 in the shader, should match)
+		1,		//How many we are activating
+		constantBufferVS.GetAddressOf()
+	);
+	context->IASetVertexBuffers(0, 1, (entityVector[4]->GetMesh()->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
+	context->IASetIndexBuffer((entityVector[4]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
+	
+	context->DrawIndexed(
+		entityVector[4]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
+	
 	// Present the back buffer to the user
 	//  - Puts the final frame we're drawing into the window so the user can see it
 	//  - Do this exactly ONCE PER FRAME (always at the very end of the frame)
