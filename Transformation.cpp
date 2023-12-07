@@ -25,6 +25,22 @@ void Transformation::MoveAbsolute(float x, float y, float z)
 	isDirty = true;
 }
 
+void Transformation::MoveRelative(float x, float y, float z)
+{
+	XMVECTOR desired = XMVectorSet(x, y, z, 0);
+
+	//Find the rotation quaternion
+	XMVECTOR rotation = XMQuaternionRotationRollPitchYawFromVector(XMLoadFloat3(&pitchYawRoll));
+
+	//Movement adjusted according to current object rotation
+	XMVECTOR adjusted = XMVector3Rotate(desired, rotation);
+
+	//Adjust movement added to current position
+	XMStoreFloat3(&position, XMLoadFloat3(&position) + adjusted);
+
+	isDirty = true;
+}
+
 void Transformation::Rotate(float pitch, float yaw, float roll)
 {
 	//XMVECTOR newRotation = XMVectorAdd(XMLoadFloat3(&pitchYawRoll), XMVectorSet(pitch, yaw, roll, 0));

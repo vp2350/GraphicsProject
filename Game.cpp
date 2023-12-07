@@ -1,5 +1,9 @@
 #include "Game.h"
 #include "Vertex.h"
+
+#include "WICTextureLoader.h"
+#include "DDSTextureLoader.h"
+
 // Needed for a helper function to read compiled shader files from the hard drive
 #pragma comment(lib, "d3dcompiler.lib")
 #include <d3dcompiler.h>
@@ -29,7 +33,9 @@ Game::Game(HINSTANCE hInstance)
 	CreateConsoleWindow(500, 120, 32, 120);
 	printf("Console window created successfully.  Feel free to printf() here.\n");
 #endif
-
+	//-10 z so we can see the origin (negative because of coordinate system)
+	//Width/height to get the aspect ratio of the window
+	camera = std::shared_ptr<Camera>(new Camera(0, 0, -10, (float)width / (float)height, XM_PIDIV4, 0.01f, 100.0f, 3.0f, 3.0f));
 }
 
 // --------------------------------------------------------
@@ -52,24 +58,72 @@ Game::~Game()
 // --------------------------------------------------------
 void Game::Init()
 {
+
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/bronze_albedo.png").c_str(), 0, srv.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/bronze_normals.png").c_str(), 0, srvNormal.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/bronze_metal.png").c_str(), 0, metal1.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/bronze_roughness.png").c_str(), 0, roughness1.GetAddressOf());
+
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/floor_albedo.png").c_str(), 0, srv2.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/floor_normals.png").c_str(), 0, srv2Normal.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/floor_metal.png").c_str(), 0, metal2.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/floor_roughness.png").c_str(), 0, roughness2.GetAddressOf());
+
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/Rocky_Color.png").c_str(), 0, srv3.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/cobblestone_normals.png").c_str(), 0, srv3Normal.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/wood_metal.png").c_str(), 0, metal3.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/Rocky_Roughness.png").c_str(), 0, roughness3.GetAddressOf());
+
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/wood_albedo.png").c_str(), 0, srv4.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/wood_normals.png").c_str(), 0, srv4Normal.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/wood_metal.png").c_str(), 0, metal4.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/wood_roughness.png").c_str(), 0, roughness4.GetAddressOf());
+
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/scratched_albedo.png").c_str(), 0, srv5.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/scratched_normals.png").c_str(), 0, srv5Normal.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/scratched_metal.png").c_str(), 0, metal5.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/scratched_roughness.png").c_str(), 0, roughness5.GetAddressOf());
+
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/paint_albedo.png").c_str(), 0, srv6.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/paint_normals.png").c_str(), 0, srv6Normal.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/paint_metal.png").c_str(), 0, metal6.GetAddressOf());
+	CreateWICTextureFromFile(device.Get(), context.Get(), GetFullPathTo_Wide(L"../../Assets/PBR/paint_roughness.png").c_str(), 0, roughness6.GetAddressOf());
+
+	CreateDDSTextureFromFile(device.Get(), GetFullPathTo_Wide(L"../../Assets/Skies/SunnyCubeMap.dds").c_str(), 0, skySRV.GetAddressOf());
+
+	D3D11_SAMPLER_DESC sampDesc = {};
+	sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	sampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	device->CreateSamplerState(&sampDesc, sampler.GetAddressOf());
+	sampDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+	sampDesc.MaxAnisotropy = 16;
+	device->CreateSamplerState(&sampDesc, sampler2.GetAddressOf());
+	device->CreateSamplerState(&sampDesc, sampler3.GetAddressOf());
+	device->CreateSamplerState(&sampDesc, sampler4.GetAddressOf());
+	device->CreateSamplerState(&sampDesc, sampler5.GetAddressOf());
+	device->CreateSamplerState(&sampDesc, sampler6.GetAddressOf());
+
+	device->CreateSamplerState(&sampDesc, skySampler.GetAddressOf());
+
 	// Helper methods for loading shaders, creating some basic
 	// geometry to draw and some simple camera matrices.
 	//  - You'll be expanding and/or replacing these later
 	LoadShaders();
 	CreateMeshes();
-	unsigned int size = sizeof(VertexShaderExternalData);
-	size = (size + 15) / 16 * 16;
-	
-	transform.SetPosition(0.5f, 0, 0);
 
-	D3D11_BUFFER_DESC cbDesc = {}; 
-	// Setsstruct to all zeros
-	cbDesc.BindFlags= D3D11_BIND_CONSTANT_BUFFER;
-	cbDesc.ByteWidth= size; // Must be a multiple of 16
-	cbDesc.CPUAccessFlags= D3D11_CPU_ACCESS_WRITE;
-	cbDesc.Usage= D3D11_USAGE_DYNAMIC;
+	//Load texture
 
-	device->CreateBuffer(&cbDesc, 0, constantBufferVS.GetAddressOf());
+	isFlying = false;
+	score = 0;
+
+	light1 = {XMFLOAT3(0.2f, 0.2f, 1.0f), 0.6f, XMFLOAT3(1,-1,0)};
+	light2 = { XMFLOAT3(1.0f, 0.2f, 0.2f), 0.6f, XMFLOAT3(1,1,2) };
+	light3 = { XMFLOAT3(1.0f, 0.2f, 0.2f), 0.6f, XMFLOAT3(5, 1 ,-2) };
+
+	ambientColor = XMFLOAT3(0.05f, 0.05f, 0.1f);
 	// Tell the input assembler stage of the pipeline what kind of
 	// geometric primitives (points, lines or triangles) we want to draw.  
 	// Essentially: "What kind of shape should the GPU draw with our data?"
@@ -86,65 +140,12 @@ void Game::Init()
 // --------------------------------------------------------
 void Game::LoadShaders()
 {
-	// Blob for reading raw data
-	// - This is a simplified way of handling raw data
-	ID3DBlob* shaderBlob;
-
-	// Read our compiled vertex shader code into a blob
-	// - Essentially just "open the file and plop its contents here"
-	D3DReadFileToBlob(
-		GetFullPathTo_Wide(L"VertexShader.cso").c_str(), // Using a custom helper for file paths
-		&shaderBlob);
-
-	// Create a vertex shader from the information we
-	// have read into the blob above
-	// - A blob can give a pointer to its contents, and knows its own size
-	device->CreateVertexShader(
-		shaderBlob->GetBufferPointer(), // Get a pointer to the blob's contents
-		shaderBlob->GetBufferSize(),	// How big is that data?
-		0,								// No classes in this shader
-		vertexShader.GetAddressOf());	// The address of the ID3D11VertexShader*
-
-
-	// Create an input layout that describes the vertex format
-	// used by the vertex shader we're using
-	//  - This is used by the pipeline to know how to interpret the raw data
-	//     sitting inside a vertex buffer
-	//  - Doing this NOW because it requires a vertex shader's byte code to verify against!
-	//  - Luckily, we already have that loaded (the blob above)
-	D3D11_INPUT_ELEMENT_DESC inputElements[2] = {};
-
-	// Set up the first element - a position, which is 3 float values
-	inputElements[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;				// Most formats are described as color channels; really it just means "Three 32-bit floats"
-	inputElements[0].SemanticName = "POSITION";							// This is "POSITION" - needs to match the semantics in our vertex shader input!
-	inputElements[0].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;	// How far into the vertex is this?  Assume it's after the previous element
-
-	// Set up the second element - a color, which is 4 more float values
-	inputElements[1].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;			// 4x 32-bit floats
-	inputElements[1].SemanticName = "COLOR";							// Match our vertex shader input!
-	inputElements[1].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;	// After the previous element
-
-	// Create the input layout, verifying our description against actual shader code
-	device->CreateInputLayout(
-		inputElements,					// An array of descriptions
-		2,								// How many elements in that array
-		shaderBlob->GetBufferPointer(),	// Pointer to the code of a shader that uses this layout
-		shaderBlob->GetBufferSize(),	// Size of the shader code that uses this layout
-		inputLayout.GetAddressOf());	// Address of the resulting ID3D11InputLayout*
-
-
-
-	// Read and create the pixel shader
-	//  - Reusing the same blob here, since we're done with the vert shader code
-	D3DReadFileToBlob(
-		GetFullPathTo_Wide(L"PixelShader.cso").c_str(), // Using a custom helper for file paths
-		&shaderBlob);
-
-	device->CreatePixelShader(
-		shaderBlob->GetBufferPointer(),
-		shaderBlob->GetBufferSize(),
-		0,
-		pixelShader.GetAddressOf());
+	vertexShader = std::shared_ptr<SimpleVertexShader>(new SimpleVertexShader(device.Get(), context.Get(), GetFullPathTo_Wide(L"VertexShader.cso").c_str()));
+	pixelShader = std::shared_ptr<SimplePixelShader>(new SimplePixelShader(device.Get(), context.Get(), GetFullPathTo_Wide(L"PixelShader.cso").c_str()));
+	normalVertexShader = std::shared_ptr<SimpleVertexShader>(new SimpleVertexShader(device.Get(), context.Get(), GetFullPathTo_Wide(L"NormalVertexShader.cso").c_str()));
+	normalPixelShader = std::shared_ptr<SimplePixelShader>(new SimplePixelShader(device.Get(), context.Get(), GetFullPathTo_Wide(L"NormalPixelShader.cso").c_str()));
+	skyVertexShader = std::shared_ptr<SimpleVertexShader>(new SimpleVertexShader(device.Get(), context.Get(), DXCore::GetFullPathTo_Wide(L"SkyVertexShader.cso").c_str()));
+	skyPixelShader = std::shared_ptr<SimplePixelShader>(new SimplePixelShader(device.Get(), context.Get(), GetFullPathTo_Wide(L"SkyPixelShader.cso").c_str()));
 }
 
 
@@ -156,9 +157,9 @@ void Game::CreateMeshes()
 {
 	// Create some temporary variables to represent colors
 	// - Not necessary, just makes things more readable
-	XMFLOAT4 red = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
-	XMFLOAT4 green = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
-	XMFLOAT4 blue = XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f);
+	XMFLOAT4 red = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	XMFLOAT4 green = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	XMFLOAT4 blue = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 
 	// Set up the vertices of the triangle we would like to draw
 	// - We're going to copy this array, exactly as it exists in memory
@@ -174,9 +175,9 @@ void Game::CreateMeshes()
 	//    since we're describing the triangle in terms of the window itself
 	Vertex vertices[] =
 	{
-		{ XMFLOAT3(+0.0f, +0.5f, +0.0f), red },
-		{ XMFLOAT3(+0.5f, -0.5f, +0.0f), blue },
-		{ XMFLOAT3(-0.5f, -0.5f, +0.0f), green },
+		{ XMFLOAT3(+0.0f, +0.5f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) },
+		{ XMFLOAT3(+0.5f, -0.5f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) },
+		{ XMFLOAT3(-0.5f, -0.5f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) },
 	};
 
 	// Set up the indices, which tell us which vertices to use and in which order
@@ -188,41 +189,75 @@ void Game::CreateMeshes()
 
 	Vertex vertices1[] =
 	{
-		{ XMFLOAT3(+0.75f, +0.75f, +0.0f), red },
-		{ XMFLOAT3(+0.75f, +0.25f, +0.0f), blue },
-		{ XMFLOAT3(+0.25f, +0.25f, +0.0f), green },
-		{ XMFLOAT3(+0.25f, +0.75f, +0.0f), red }
+		{ XMFLOAT3(+0.75f, +0.75f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) },
+		{ XMFLOAT3(+0.75f, +0.25f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) },
+		{ XMFLOAT3(+0.25f, +0.25f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) },
+		{ XMFLOAT3(+0.25f, +0.75f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) }
 	};
 
 	unsigned int indices1[] = { 0, 1, 2, 0, 2, 3 };
 
 	Vertex vertices2[] =
 	{
-		{ XMFLOAT3(-0.25f, +0.5f, +0.0f), red },
-		{ XMFLOAT3(-0.25f, +0.00f, +0.0f), blue },
-		{ XMFLOAT3(-0.75f, +0.00f, +0.0f), green },
-		{ XMFLOAT3(-0.75f, +0.50f, +0.0f), red },
-		{ XMFLOAT3(-0.50f, +1.00f, +0.0f), blue }
+		{ XMFLOAT3(-0.25f, +0.5f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) },
+		{ XMFLOAT3(-0.25f, +0.00f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) },
+		{ XMFLOAT3(-0.75f, +0.00f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) },
+		{ XMFLOAT3(-0.75f, +0.50f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) },
+		{ XMFLOAT3(-0.50f, +1.00f, +0.0f), XMFLOAT3(0,0,-1), XMFLOAT2(0,0) }
 
 	};
 
 	unsigned int indices2[] = { 0, 1, 2, 0, 2, 3, 0, 3, 4 };
 
-	newMesh1 = std::shared_ptr<Mesh>(new Mesh(vertices, 3, indices, 3, device));
-	newMesh2 = std::shared_ptr<Mesh>(new Mesh(vertices1, 4, indices1, 6, device));
-	newMesh3 = std::shared_ptr<Mesh>(new Mesh(vertices2, 5, indices2, 9, device));
+	material1 = std::shared_ptr<Material>(new Material(red, pixelShader, vertexShader, 10.0f, sampler, srv, srvNormal, metal1, roughness1));
+	material2 = std::shared_ptr<Material>(new Material(green, pixelShader, vertexShader, 100.0f, sampler2, srv2, srv2Normal, metal2, roughness2));
+	material3 = std::shared_ptr<Material>(new Material(blue, normalPixelShader, normalVertexShader, 100.0f, sampler3, srv3, srv3Normal, metal3, roughness3));
+	material4 = std::shared_ptr<Material>(new Material(blue, normalPixelShader, normalVertexShader, 100.0f, sampler4, srv4, srv4Normal, metal4, roughness4));
+	material5 = std::shared_ptr<Material>(new Material(blue, normalPixelShader, normalVertexShader, 100.0f, sampler5, srv5, srv5Normal, metal5, roughness5));
+	material6 = std::shared_ptr<Material>(new Material(blue, normalPixelShader, normalVertexShader, 100.0f, sampler5, srv6, srv6Normal, metal6, roughness6));
 
-	newEntity1 = std::shared_ptr<Entity>(new Entity(newMesh1));
+	newMesh1 = std::shared_ptr<Mesh>(new Mesh(GetFullPathTo("../../Assets/Models/sphere.obj").c_str(), device));
+	newMesh2 = std::shared_ptr<Mesh>(new Mesh(GetFullPathTo("../../Assets/Models/cylinder.obj").c_str(), device));
+	newMesh3 = std::shared_ptr<Mesh>(new Mesh(GetFullPathTo("../../Assets/Models/cube.obj").c_str(), device));
+	newMesh4 = std::shared_ptr<Mesh>(new Mesh(GetFullPathTo("../../Assets/Models/cube.obj").c_str(), device));
+	newMesh5 = std::shared_ptr<Mesh>(new Mesh(GetFullPathTo("../../Assets/Models/cube.obj").c_str(), device));
+
+	targetMesh1 = std::shared_ptr<Mesh>(new Mesh(GetFullPathTo("../../Assets/Models/cylinder.obj").c_str(), device));
+	targetMesh2 = std::shared_ptr<Mesh>(new Mesh(GetFullPathTo("../../Assets/Models/cylinder.obj").c_str(), device));
+	targetMesh3 = std::shared_ptr<Mesh>(new Mesh(GetFullPathTo("../../Assets/Models/cylinder.obj").c_str(), device));
+
+	skyMesh = std::shared_ptr<Mesh>(new Mesh(GetFullPathTo("../../Assets/Models/cube.obj").c_str(), device));
+
+	newEntity1 = std::shared_ptr<Entity>(new Entity(newMesh1, material1));
 	entityVector.push_back(newEntity1);
-	newEntity2 = std::shared_ptr<Entity>(new Entity(newMesh1));
+	newEntity2 = std::shared_ptr<Entity>(new Entity(newMesh2, material6));
 	entityVector.push_back(newEntity2);
-	newEntity3 = std::shared_ptr<Entity>(new Entity(newMesh1));
+	newEntity3 = std::shared_ptr<Entity>(new Entity(newMesh3, material3));
 	entityVector.push_back(newEntity3);
-	newEntity4 = std::shared_ptr<Entity>(new Entity(newMesh2));
+	newEntity4 = std::shared_ptr<Entity>(new Entity(newMesh4, material2));
 	entityVector.push_back(newEntity4);
-	newEntity5 = std::shared_ptr<Entity>(new Entity(newMesh3));
+	newEntity5 = std::shared_ptr<Entity>(new Entity(newMesh5, material4));
 	entityVector.push_back(newEntity5);
 
+	targetEntity1 = std::shared_ptr<Entity>(new Entity(targetMesh1, material5));
+	targetVector.push_back(targetEntity1);
+	targetEntity2 = std::shared_ptr<Entity>(new Entity(targetMesh2, material5));
+	targetVector.push_back(targetEntity2);
+	targetEntity3 = std::shared_ptr<Entity>(new Entity(targetMesh3, material5));
+	targetVector.push_back(targetEntity3);
+
+	(entityVector[0]->GetTransformation())->SetPosition(5.0f, 0.0f, 0.0f);
+	(entityVector[0]->GetTransformation())->SetScale(0.3f, 0.3f, 0.3f);
+
+	(targetVector[0]->GetTransformation())->SetPosition(-5.0f, 0.0f, 15.0f);
+	(targetVector[0]->GetTransformation())->SetScale(1, 1, 1);
+	(targetVector[1]->GetTransformation())->SetPosition(0.0f, 5.0f, 15.0f);
+	(targetVector[1]->GetTransformation())->SetScale(1, 1, 1);
+	(targetVector[2]->GetTransformation())->SetPosition(5.0f, 0.0f, 15.0f);
+	(targetVector[2]->GetTransformation())->SetScale(1, 1, 1);
+	
+
+	sky = std::shared_ptr<Sky>(new Sky(skyMesh, skySampler, skySRV, device, context, skyPixelShader, skyVertexShader));
 }
 
 
@@ -234,6 +269,10 @@ void Game::OnResize()
 {
 	// Handle base-level DX resize stuff
 	DXCore::OnResize();
+
+	float aspectRatio = (float)width / (float)height;
+	//Change the camera aspect ratio on resize
+	camera->UpdateProjectionMatrix(aspectRatio, XM_PIDIV4, 0.01f, 100.0f);
 }
 
 // --------------------------------------------------------
@@ -246,17 +285,54 @@ void Game::Update(float deltaTime, float totalTime)
 		Quit();
 	}
 
+	if (score >= 3)
+	{
+		Quit();
+	}
 	//transform.SetPosition(0.5f, 0, 0);
 	transform.MoveAbsolute(deltaTime * 0.1f, 0, 0);
 	transform.Rotate(0, 0, deltaTime * 0.1f);
+	
 
-	float sinTime = (sin(totalTime * 10.0f)) / 100.0f;
-	(entityVector[0]->GetTransformation())->MoveAbsolute(deltaTime * 0.1f, 0, 0);
-	(entityVector[1]->GetTransformation())->SetPosition(0.5f, 0, 0);
-	(entityVector[2]->GetTransformation())->Scale(deltaTime, 2.0f, 2.0f);
-	(entityVector[3]->GetTransformation())->Rotate(0, 0.0f, deltaTime);
-	(entityVector[4]->GetTransformation())->SetRotation(0.0f, 0.0f, 20.0f);
+	if (!isFlying) {
+		(entityVector[0]->GetTransformation())->SetPosition(camera->GetTransform().GetPosition().x, camera->GetTransform().GetPosition().y, camera->GetTransform().GetPosition().z);
+		(entityVector[0]->GetTransformation())->SetRotation(camera->GetTransform().GetRotation().x, camera->GetTransform().GetRotation().y, camera->GetTransform().GetRotation().z);
+		(entityVector[0]->GetTransformation())->MoveRelative(0, 0, 3.0f);
+	}
+	else {
+		(entityVector[0]->GetTransformation())->MoveRelative(0.0f, 0.0f, 10.0f * deltaTime);
 
+		if (entityVector[0]->GetTransformation()->GetPosition().x > 10 || entityVector[0]->GetTransformation()->GetPosition().x < -10
+			|| entityVector[0]->GetTransformation()->GetPosition().y > 10 || entityVector[0]->GetTransformation()->GetPosition().y < -3
+			|| entityVector[0]->GetTransformation()->GetPosition().z > 20 || entityVector[0]->GetTransformation()->GetPosition().z < -15) {
+			isFlying = false;
+		}
+	}
+	if (GetAsyncKeyState(VK_RBUTTON) & 0x8000) {
+		isFlying = true;
+	}
+
+	CheckCollision(entityVector, targetVector);
+	camera->Update(deltaTime, this->hWnd);
+}
+
+void Game::CheckCollision(std::vector<std::shared_ptr<Entity>> entityVector, std::vector<std::shared_ptr<Entity>> targetVector) {
+	for (int i = 0; i < targetVector.size(); i++)
+	{
+		float distance = (float)pow((float)(entityVector[0]->GetTransformation()->GetPosition().x - (float)(targetVector[i]->GetTransformation()->GetPosition().x)), 2) +
+			pow((float)(entityVector[0]->GetTransformation()->GetPosition().y - (float)(targetVector[i]->GetTransformation()->GetPosition().y)), 2) +
+			pow((float)(entityVector[0]->GetTransformation()->GetPosition().z - (float)(targetVector[i]->GetTransformation()->GetPosition().z)), 2);
+
+		if (distance < 1.0f)
+		{
+			(targetVector[i]->GetTransformation())->SetPosition(-6.0f + (float)i, -0.2f, -7.0f);
+			(targetVector[i]->GetTransformation())->SetScale(0.5f, 0.5f, 0.5f);
+
+			isFlying = false;
+			score++;
+		}
+
+	}
 }
 
 // --------------------------------------------------------
@@ -264,29 +340,43 @@ void Game::Update(float deltaTime, float totalTime)
 // --------------------------------------------------------
 void Game::Draw(float deltaTime, float totalTime)
 {
-	VertexShaderExternalData vsData;
-	vsData.colorTint = XMFLOAT4(1.0f, 0.2f, 0.2f, 1.0f);
-	vsData.worldMatrix = (entityVector[0]->GetTransformation())->GetWorldMatrix();
+	std::shared_ptr<SimpleVertexShader> simpleVS = entityVector[0]->GetMaterial()->GetVertexShader();
+	std::shared_ptr<SimplePixelShader> simplePS = entityVector[0]->GetMaterial()->GetPixelShader();
 
-	D3D11_MAPPED_SUBRESOURCE mappedBuffer = {};
-	context->Map(constantBufferVS.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
+	simplePS->SetData("light",   // The name of the (eventual) variable in the shader
+		&light1,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light2",   // The name of the (eventual) variable in the shader
+		&light2,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light3",   // The name of the (eventual) variable in the shader
+		&light3,    // The address of the data to set 
+		sizeof(PointLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetFloat3("ambientColor", ambientColor); // Pass ambient, too
+	simplePS->SetFloat3("cameraPosition", (camera->GetTransform()).GetPosition());
+	simplePS->SetFloat("specExponent", entityVector[0]->GetMaterial()->GetSpecExponent());
+	
+	//Not part of buffer data
+	simplePS->SetShaderResourceView("diffuseTexture", entityVector[0]->GetMaterial()->GetSRV().Get());
+	simplePS->SetSamplerState("basicSampler", entityVector[0]->GetMaterial()->GetSampler().Get());
+	simplePS->SetShaderResourceView("MetalnssMap", entityVector[0]->GetMaterial()->GetMetal().Get());
+	simplePS->SetShaderResourceView("RoughnessMap", entityVector[0]->GetMaterial()->GetRoughness().Get());
 
-	memcpy(mappedBuffer.pData, &vsData, sizeof(vsData));
+	if(entityVector[0]->GetMaterial()->GetSRVNormal().Get() != NULL)
+		simplePS->SetShaderResourceView("normalTexture", entityVector[0]->GetMaterial()->GetSRVNormal().Get());
 
-	context->Unmap(constantBufferVS.Get(), 0);
+	simpleVS->SetFloat4("colorTint", entityVector[0]->GetMaterial()->GetTint());
+	simpleVS->SetMatrix4x4("world", entityVector[0]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
 
-	context->VSSetConstantBuffers(
-		0,		//Slot to bind buffer to (using b0 in the shader, should match)
-		1,		//How many we are activating
-		constantBufferVS.GetAddressOf()
-	);
+	simplePS->CopyAllBufferData();
+	simpleVS->CopyAllBufferData();
 
-	// Background color (Cornflower Blue in this case) for clearing
 	const float color[4] = { 0.4f, 0.6f, 0.75f, 0.0f };
-
+	entityVector[0]->GetMaterial()->GetVertexShader()->SetShader();
+	entityVector[0]->GetMaterial()->GetPixelShader()->SetShader();
 	// Clear the render target and depth buffer (erases what's on the screen)
-	//  - Do this ONCE PER FRAME
-	//  - At the beginning of Draw (before drawing *anything*)
 	context->ClearRenderTargetView(backBufferRTV.Get(), color);
 	context->ClearDepthStencilView(
 		depthStencilView.Get(),
@@ -295,140 +385,457 @@ void Game::Draw(float deltaTime, float totalTime)
 		0);
 
 
-	// Set the vertex and pixel shaders to use for the next Draw() command
-	//  - These don't technically need to be set every frame
-	//  - Once you start applying different shaders to different objects,
-	//    you'll need to swap the current shaders before each draw
-	context->VSSetShader(vertexShader.Get(), 0, 0);
-	context->PSSetShader(pixelShader.Get(), 0, 0);
-
-
-	// Ensure the pipeline knows how to interpret the data (numbers)
-	// from the vertex buffer.  
-	// - If all of your 3D models use the exact same vertex layout,
-	//    this could simply be done once in Init()
-	// - However, this isn't always the case (but might be for this course)
-	context->IASetInputLayout(inputLayout.Get());
-
-
 	// Set buffers in the input assembler
 	//  - Do this ONCE PER OBJECT you're drawing, since each object might
 	//    have different geometry.
-	//  - for this demo, this step *could* simply be done once during Init(),
-	//    but I'm doing it here because it's often done multiple times per frame
-	//    in a larger application/game
+
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
 
 	context->IASetVertexBuffers(0, 1, ((entityVector[0]->GetMesh())->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
 	context->IASetIndexBuffer((entityVector[0]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
 
-	// Finally do the actual drawing
-	//  - Do this ONCE PER OBJECT you intend to draw
-	//  - This will use all of the currently set DirectX "stuff" (shaders, buffers, etc)
-	//  - DrawIndexed() uses the currently set INDEX BUFFER to look up corresponding
-	//     vertices in the currently set VERTEX BUFFER
-	// Offset to add to each index when looking up vertices
 	context->DrawIndexed(
 		entityVector[0]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
 		0,     // Offset to the first index we want to use
 		0);
 
 
+	//PILLARS 
+	(entityVector[1]->GetTransformation())->SetPosition(-5.0f, -3.05f, 15.0f);
+	(entityVector[1]->GetTransformation())->SetScale(1.20f, 5.0f, 1.20f);
 
-
-	vsData.worldMatrix = (entityVector[1]->GetTransformation())->GetWorldMatrix();
-	mappedBuffer = {};
-	context->Map(constantBufferVS.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
-
-	memcpy(mappedBuffer.pData, &vsData, sizeof(vsData));
-
-	context->Unmap(constantBufferVS.Get(), 0);
-	context->VSSetConstantBuffers(
-		0,		//Slot to bind buffer to (using b0 in the shader, should match)
-		1,		//How many we are activating
-		constantBufferVS.GetAddressOf()
-	);
+	simpleVS = entityVector[1]->GetMaterial()->GetVertexShader();
+	simplePS = entityVector[1]->GetMaterial()->GetPixelShader();
+	
+	simpleVS->SetFloat4("colorTint", entityVector[1]->GetMaterial()->GetTint());
+	simpleVS->SetMatrix4x4("world", entityVector[1]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
+	
+	simpleVS->CopyAllBufferData();
+	
+	simplePS->SetData("light",   // The name of the (eventual) variable in the shader
+		&light1,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light2",   // The name of the (eventual) variable in the shader
+		&light2,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light3",   // The name of the (eventual) variable in the shader
+		&light3,    // The address of the data to set 
+		sizeof(PointLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetFloat3("ambientColor", ambientColor); // Pass ambient, too
+	simplePS->SetFloat3("cameraPosition", (camera->GetTransform()).GetPosition());
+	simplePS->SetFloat("specExponent", entityVector[1]->GetMaterial()->GetSpecExponent());
+	
+	simplePS->SetShaderResourceView("diffuseTexture", entityVector[1]->GetMaterial()->GetSRV().Get());
+	simplePS->SetSamplerState("basicSampler", entityVector[1]->GetMaterial()->GetSampler().Get());
+	simplePS->SetShaderResourceView("MetalnssMap", entityVector[1]->GetMaterial()->GetMetal().Get());
+	simplePS->SetShaderResourceView("RoughnessMap", entityVector[1]->GetMaterial()->GetRoughness().Get());
+	if (entityVector[1]->GetMaterial()->GetSRVNormal().Get() != NULL)
+		simplePS->SetShaderResourceView("normalTexture", entityVector[1]->GetMaterial()->GetSRVNormal().Get());
+	
+	simplePS->CopyAllBufferData();
+	
 	context->IASetVertexBuffers(0, 1, (entityVector[1]->GetMesh()->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
 	context->IASetIndexBuffer((entityVector[1]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
+	
+	entityVector[1]->GetMaterial()->GetVertexShader()->SetShader();
+	entityVector[1]->GetMaterial()->GetPixelShader()->SetShader();
 	
 	context->DrawIndexed(
 		entityVector[1]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
 		0,     // Offset to the first index we want to use
 		0);
-	
 
+	(entityVector[1]->GetTransformation())->SetPosition(5.0f, -3.05f, 15.0f);
+	simpleVS->SetMatrix4x4("world", entityVector[1]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
 
+	simpleVS->CopyAllBufferData();
 
-	vsData.worldMatrix = (entityVector[2]->GetTransformation())->GetWorldMatrix();
-	mappedBuffer = {};
-	context->Map(constantBufferVS.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
+	entityVector[1]->GetMaterial()->GetVertexShader()->SetShader();
+	entityVector[1]->GetMaterial()->GetPixelShader()->SetShader();
 
-	memcpy(mappedBuffer.pData, &vsData, sizeof(vsData));
+	context->DrawIndexed(
+		entityVector[1]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
 
-	context->Unmap(constantBufferVS.Get(), 0);
-	context->VSSetConstantBuffers(
-		0,		//Slot to bind buffer to (using b0 in the shader, should match)
-		1,		//How many we are activating
-		constantBufferVS.GetAddressOf()
-	);
+	(entityVector[1]->GetTransformation())->SetPosition(0.0f, 0.0f, 15.0f);
+	(entityVector[1]->GetTransformation())->SetScale(1.20f, 9.0f, 1.20f);
+
+	simpleVS->SetMatrix4x4("world", entityVector[1]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
+
+	simpleVS->CopyAllBufferData();
+
+	entityVector[1]->GetMaterial()->GetVertexShader()->SetShader();
+	entityVector[1]->GetMaterial()->GetPixelShader()->SetShader();
+
+	context->DrawIndexed(
+		entityVector[1]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
+
+	//TARGET
+
+	simpleVS = targetVector[0]->GetMaterial()->GetVertexShader();
+	simplePS = targetVector[0]->GetMaterial()->GetPixelShader();
+
+	simpleVS->SetFloat4("colorTint", targetVector[0]->GetMaterial()->GetTint());
+	simpleVS->SetMatrix4x4("world", targetVector[0]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
+
+	simpleVS->CopyAllBufferData();
+
+	simplePS->SetData("light",   // The name of the (eventual) variable in the shader
+		&light1,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light2",   // The name of the (eventual) variable in the shader
+		&light2,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light3",   // The name of the (eventual) variable in the shader
+		&light3,    // The address of the data to set 
+		sizeof(PointLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetFloat3("ambientColor", ambientColor); // Pass ambient, too
+	simplePS->SetFloat3("cameraPosition", (camera->GetTransform()).GetPosition());
+	simplePS->SetFloat("specExponent", targetVector[0]->GetMaterial()->GetSpecExponent());
+
+	simplePS->SetShaderResourceView("diffuseTexture", targetVector[0]->GetMaterial()->GetSRV().Get());
+	simplePS->SetSamplerState("basicSampler", targetVector[0]->GetMaterial()->GetSampler().Get());
+	simplePS->SetShaderResourceView("MetalnssMap", targetVector[0]->GetMaterial()->GetMetal().Get());
+	simplePS->SetShaderResourceView("RoughnessMap", targetVector[0]->GetMaterial()->GetRoughness().Get());
+	if (targetVector[0]->GetMaterial()->GetSRVNormal().Get() != NULL)
+		simplePS->SetShaderResourceView("normalTexture", targetVector[0]->GetMaterial()->GetSRVNormal().Get());
+
+	simplePS->CopyAllBufferData();
+
+	context->IASetVertexBuffers(0, 1, (targetVector[0]->GetMesh()->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
+	context->IASetIndexBuffer((targetVector[0]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
+
+	targetVector[0]->GetMaterial()->GetVertexShader()->SetShader();
+	targetVector[0]->GetMaterial()->GetPixelShader()->SetShader();
+
+	context->DrawIndexed(
+		targetVector[0]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
+
+	simpleVS = targetVector[1]->GetMaterial()->GetVertexShader();
+	simplePS = targetVector[1]->GetMaterial()->GetPixelShader();
+
+	simpleVS->SetFloat4("colorTint", targetVector[1]->GetMaterial()->GetTint());
+	simpleVS->SetMatrix4x4("world", targetVector[1]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
+
+	simpleVS->CopyAllBufferData();
+
+	simplePS->SetData("light",   // The name of the (eventual) variable in the shader
+		&light1,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light2",   // The name of the (eventual) variable in the shader
+		&light2,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light3",   // The name of the (eventual) variable in the shader
+		&light3,    // The address of the data to set 
+		sizeof(PointLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetFloat3("ambientColor", ambientColor); // Pass ambient, too
+	simplePS->SetFloat3("cameraPosition", (camera->GetTransform()).GetPosition());
+	simplePS->SetFloat("specExponent", targetVector[1]->GetMaterial()->GetSpecExponent());
+
+	simplePS->SetShaderResourceView("diffuseTexture", targetVector[1]->GetMaterial()->GetSRV().Get());
+	simplePS->SetSamplerState("basicSampler", targetVector[1]->GetMaterial()->GetSampler().Get());
+	simplePS->SetShaderResourceView("MetalnssMap", targetVector[1]->GetMaterial()->GetMetal().Get());
+	simplePS->SetShaderResourceView("RoughnessMap", targetVector[1]->GetMaterial()->GetRoughness().Get());
+	if (targetVector[1]->GetMaterial()->GetSRVNormal().Get() != NULL)
+		simplePS->SetShaderResourceView("normalTexture", targetVector[1]->GetMaterial()->GetSRVNormal().Get());
+
+	simplePS->CopyAllBufferData();
+
+	context->IASetVertexBuffers(0, 1, (targetVector[1]->GetMesh()->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
+	context->IASetIndexBuffer((targetVector[1]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
+
+	targetVector[1]->GetMaterial()->GetVertexShader()->SetShader();
+	targetVector[1]->GetMaterial()->GetPixelShader()->SetShader();
+
+	context->DrawIndexed(
+		targetVector[1]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
+
+	simpleVS = targetVector[2]->GetMaterial()->GetVertexShader();
+	simplePS = targetVector[2]->GetMaterial()->GetPixelShader();
+
+	simpleVS->SetFloat4("colorTint", targetVector[2]->GetMaterial()->GetTint());
+	simpleVS->SetMatrix4x4("world", targetVector[2]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
+
+	simpleVS->CopyAllBufferData();
+
+	simplePS->SetData("light",   // The name of the (eventual) variable in the shader
+		&light1,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light2",   // The name of the (eventual) variable in the shader
+		&light2,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light3",   // The name of the (eventual) variable in the shader
+		&light3,    // The address of the data to set 
+		sizeof(PointLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetFloat3("ambientColor", ambientColor); // Pass ambient, too
+	simplePS->SetFloat3("cameraPosition", (camera->GetTransform()).GetPosition());
+	simplePS->SetFloat("specExponent", targetVector[2]->GetMaterial()->GetSpecExponent());
+
+	simplePS->SetShaderResourceView("diffuseTexture", targetVector[2]->GetMaterial()->GetSRV().Get());
+	simplePS->SetSamplerState("basicSampler", targetVector[2]->GetMaterial()->GetSampler().Get());
+	simplePS->SetShaderResourceView("MetalnssMap", targetVector[2]->GetMaterial()->GetMetal().Get());
+	simplePS->SetShaderResourceView("RoughnessMap", targetVector[2]->GetMaterial()->GetRoughness().Get());
+	if (targetVector[2]->GetMaterial()->GetSRVNormal().Get() != NULL)
+		simplePS->SetShaderResourceView("normalTexture", targetVector[2]->GetMaterial()->GetSRVNormal().Get());
+
+	simplePS->CopyAllBufferData();
+
+	context->IASetVertexBuffers(0, 1, (targetVector[2]->GetMesh()->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
+	context->IASetIndexBuffer((targetVector[2]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
+
+	targetVector[2]->GetMaterial()->GetVertexShader()->SetShader();
+	targetVector[2]->GetMaterial()->GetPixelShader()->SetShader();
+
+	context->DrawIndexed(
+		targetVector[2]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
+
+	//LEFT AND RIGHT WALL
+
+	(entityVector[2]->GetTransformation())->SetPosition(8.25f, 2.2f, 2.5f);
+	(entityVector[2]->GetTransformation())->SetScale(0.3f, 10.0f, 35.0f);
+	(entityVector[2]->GetTransformation())->SetRotation(0.0f, 3.14f, 0.0f);
+
+	simpleVS = entityVector[2]->GetMaterial()->GetVertexShader();
+	simplePS = entityVector[2]->GetMaterial()->GetPixelShader();
+
+	simpleVS->SetFloat4("colorTint", entityVector[2]->GetMaterial()->GetTint());
+	simpleVS->SetMatrix4x4("world", entityVector[2]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
+
+	simpleVS->CopyAllBufferData();
+
+	simplePS->SetData("light",   // The name of the (eventual) variable in the shader
+		&light1,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light2",   // The name of the (eventual) variable in the shader
+		&light2,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light3",   // The name of the (eventual) variable in the shader
+		&light3,    // The address of the data to set 
+		sizeof(PointLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetFloat3("ambientColor", ambientColor); // Pass ambient, too
+	simplePS->SetFloat3("cameraPosition", (camera->GetTransform()).GetPosition());
+	simplePS->SetFloat("specExponent", entityVector[2]->GetMaterial()->GetSpecExponent());
+
+	simplePS->SetShaderResourceView("diffuseTexture", entityVector[2]->GetMaterial()->GetSRV().Get());
+	simplePS->SetSamplerState("basicSampler", entityVector[2]->GetMaterial()->GetSampler().Get());
+	simplePS->SetShaderResourceView("MetalnssMap", entityVector[2]->GetMaterial()->GetMetal().Get());
+	simplePS->SetShaderResourceView("RoughnessMap", entityVector[2]->GetMaterial()->GetRoughness().Get());
+	if (entityVector[2]->GetMaterial()->GetSRVNormal().Get() != NULL)
+		simplePS->SetShaderResourceView("normalTexture", entityVector[2]->GetMaterial()->GetSRVNormal().Get());
+
+	simplePS->CopyAllBufferData();
+
 	context->IASetVertexBuffers(0, 1, (entityVector[2]->GetMesh()->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
 	context->IASetIndexBuffer((entityVector[2]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
-	
+
+	entityVector[2]->GetMaterial()->GetVertexShader()->SetShader();
+	entityVector[2]->GetMaterial()->GetPixelShader()->SetShader();
+
 	context->DrawIndexed(
 		entityVector[2]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
 		0,     // Offset to the first index we want to use
 		0);
 	
+	(entityVector[2]->GetTransformation())->SetPosition(-8.25f, 2.2f, 2.5f);
+	//(entityVector[2]->GetTransformation())->SetScale(0.3, 15, 25);
+	//(entityVector[2]->GetTransformation())->Rotate(0.0f, 3.14f, 0.0f);
+
+	simpleVS->SetMatrix4x4("world", entityVector[2]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
+
+	simpleVS->CopyAllBufferData();
+
+	entityVector[2]->GetMaterial()->GetVertexShader()->SetShader();
+	entityVector[2]->GetMaterial()->GetPixelShader()->SetShader();
+
+	context->DrawIndexed(
+		entityVector[2]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
 
 
+	//TOP AND BOTTOM
 
-	vsData.worldMatrix = entityVector[3]->GetTransformation()->GetWorldMatrix();
-	mappedBuffer = {};
-	context->Map(constantBufferVS.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
+	(entityVector[2]->GetTransformation())->SetPosition(0.0f, -3.0f, 2.5f);
+	(entityVector[2]->GetTransformation())->SetScale(0.3f, 17.5f, 35.0f);
+	(entityVector[2]->GetTransformation())->SetRotation(0.0f, 3.14f, 1.57f);
 
-	memcpy(mappedBuffer.pData, &vsData, sizeof(vsData));
+	simpleVS->SetMatrix4x4("world", entityVector[2]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
 
-	context->Unmap(constantBufferVS.Get(), 0);
-	context->VSSetConstantBuffers(
-		0,		//Slot to bind buffer to (using b0 in the shader, should match)
-		1,		//How many we are activating
-		constantBufferVS.GetAddressOf()
-	);
+	simpleVS->CopyAllBufferData();
+
+	entityVector[2]->GetMaterial()->GetVertexShader()->SetShader();
+	entityVector[2]->GetMaterial()->GetPixelShader()->SetShader();
+
+	context->DrawIndexed(
+		entityVector[2]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
+
+	(entityVector[2]->GetTransformation())->SetPosition(0.0f, 7.0f, 2.5f);
+	//(entityVector[2]->GetTransformation())->SetScale(0.3, 15, 18);
+	//(entityVector[2]->GetTransformation())->Rotate(0.0f, 3.14f, 1.57f);
+
+	simpleVS->SetMatrix4x4("world", entityVector[2]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
+
+	simpleVS->CopyAllBufferData();
+
+	entityVector[2]->GetMaterial()->GetVertexShader()->SetShader();
+	entityVector[2]->GetMaterial()->GetPixelShader()->SetShader();
+
+	context->DrawIndexed(
+		entityVector[2]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
+	
+	//BACK AND FRONT WALL
+
+	(entityVector[3]->GetTransformation())->SetPosition(0.0f, 2.2f, 17.50f);
+	(entityVector[3]->GetTransformation())->SetScale(0.3f, 12.5f, 20.0f);
+	(entityVector[3]->GetTransformation())->SetRotation(0.0f, 1.57f, 0.0f);
+
+	simpleVS = entityVector[3]->GetMaterial()->GetVertexShader();
+	simplePS = entityVector[3]->GetMaterial()->GetPixelShader();
+
+	simpleVS->SetFloat4("colorTint", entityVector[3]->GetMaterial()->GetTint());
+	simpleVS->SetMatrix4x4("world", entityVector[3]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
+
+	simpleVS->CopyAllBufferData();
+
+	simplePS->SetData("light",   // The name of the (eventual) variable in the shader
+		&light1,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light2",   // The name of the (eventual) variable in the shader
+		&light2,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light3",   // The name of the (eventual) variable in the shader
+		&light3,    // The address of the data to set 
+		sizeof(PointLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetFloat3("ambientColor", ambientColor); // Pass ambient, too
+	simplePS->SetFloat3("cameraPosition", (camera->GetTransform()).GetPosition());
+	simplePS->SetFloat("specExponent", entityVector[3]->GetMaterial()->GetSpecExponent());
+
+	simplePS->SetShaderResourceView("diffuseTexture", entityVector[3]->GetMaterial()->GetSRV().Get());
+	simplePS->SetSamplerState("basicSampler", entityVector[3]->GetMaterial()->GetSampler().Get());
+	simplePS->SetShaderResourceView("MetalnssMap", entityVector[3]->GetMaterial()->GetMetal().Get());
+	simplePS->SetShaderResourceView("RoughnessMap", entityVector[3]->GetMaterial()->GetRoughness().Get());
+	if (entityVector[3]->GetMaterial()->GetSRVNormal().Get() != NULL)
+		simplePS->SetShaderResourceView("normalTexture", entityVector[3]->GetMaterial()->GetSRVNormal().Get());
+
+	simplePS->CopyAllBufferData();
+
 	context->IASetVertexBuffers(0, 1, (entityVector[3]->GetMesh()->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
 	context->IASetIndexBuffer((entityVector[3]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
-	
+
+	entityVector[3]->GetMaterial()->GetVertexShader()->SetShader();
+	entityVector[3]->GetMaterial()->GetPixelShader()->SetShader();
+
 	context->DrawIndexed(
 		entityVector[3]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
 		0,     // Offset to the first index we want to use
 		0);
-	
+
+	(entityVector[3]->GetTransformation())->SetPosition(0.0f, 2.2f, -15.0f);
+	//(entityVector[2]->GetTransformation())->SetScale(0.3, 15, 18);
+	//(entityVector[2]->GetTransformation())->Rotate(0.0f, 3.14f, 1.57f);
+
+	simpleVS->SetMatrix4x4("world", entityVector[3]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
+
+	simpleVS->CopyAllBufferData();
+
+	entityVector[3]->GetMaterial()->GetVertexShader()->SetShader();
+	entityVector[3]->GetMaterial()->GetPixelShader()->SetShader();
+
+	context->DrawIndexed(
+		entityVector[3]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
+		0,     // Offset to the first index we want to use
+		0);
 
 
+	//TABLE
 
-	vsData.worldMatrix = entityVector[4]->GetTransformation()->GetWorldMatrix();
-	mappedBuffer = {};
-	context->Map(constantBufferVS.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
+	(entityVector[4]->GetTransformation())->SetPosition(0.0f, -1.5f, -7.0f);
+	(entityVector[4]->GetTransformation())->SetScale(2, 20, 2);
+	(entityVector[4]->GetTransformation())->SetRotation(0.0f, 3.14f, 1.57f);
 
-	memcpy(mappedBuffer.pData, &vsData, sizeof(vsData));
+	simpleVS = entityVector[4]->GetMaterial()->GetVertexShader();
+	simplePS = entityVector[4]->GetMaterial()->GetPixelShader();
 
-	context->Unmap(constantBufferVS.Get(), 0);
-	context->VSSetConstantBuffers(
-		0,		//Slot to bind buffer to (using b0 in the shader, should match)
-		1,		//How many we are activating
-		constantBufferVS.GetAddressOf()
-	);
+	simpleVS->SetFloat4("colorTint", entityVector[4]->GetMaterial()->GetTint());
+	simpleVS->SetMatrix4x4("world", entityVector[4]->GetTransformation()->GetWorldMatrix());
+	simpleVS->SetMatrix4x4("viewMatrix", camera->GetViewMatrix());
+	simpleVS->SetMatrix4x4("projectionMatrix", camera->GetProjectionMatrix());
+
+	simpleVS->CopyAllBufferData();
+
+	simplePS->SetData("light",   // The name of the (eventual) variable in the shader
+		&light1,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light2",   // The name of the (eventual) variable in the shader
+		&light2,    // The address of the data to set 
+		sizeof(DirectionalLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetData("light3",   // The name of the (eventual) variable in the shader
+		&light3,    // The address of the data to set 
+		sizeof(PointLight)); // The size of the data (the whole struct!) to set   
+	simplePS->SetFloat3("ambientColor", ambientColor); // Pass ambient, too
+	simplePS->SetFloat3("cameraPosition", (camera->GetTransform()).GetPosition());
+	simplePS->SetFloat("specExponent", entityVector[4]->GetMaterial()->GetSpecExponent());
+
+	simplePS->SetShaderResourceView("diffuseTexture", entityVector[4]->GetMaterial()->GetSRV().Get());
+	simplePS->SetSamplerState("basicSampler", entityVector[4]->GetMaterial()->GetSampler().Get());
+	simplePS->SetShaderResourceView("MetalnssMap", entityVector[4]->GetMaterial()->GetMetal().Get());
+	simplePS->SetShaderResourceView("RoughnessMap", entityVector[4]->GetMaterial()->GetRoughness().Get());
+	if (entityVector[4]->GetMaterial()->GetSRVNormal().Get() != NULL)
+		simplePS->SetShaderResourceView("normalTexture", entityVector[4]->GetMaterial()->GetSRVNormal().Get());
+
+	simplePS->CopyAllBufferData();
+
 	context->IASetVertexBuffers(0, 1, (entityVector[4]->GetMesh()->GetVertexBuffer()).GetAddressOf(), &stride, &offset);
 	context->IASetIndexBuffer((entityVector[4]->GetMesh()->GetIndexBuffer()).Get(), DXGI_FORMAT_R32_UINT, 0);
-	
+
+	entityVector[4]->GetMaterial()->GetVertexShader()->SetShader();
+	entityVector[4]->GetMaterial()->GetPixelShader()->SetShader();
+
 	context->DrawIndexed(
 		entityVector[4]->GetMesh()->GetIndexCount(),     // The number of indices to use (we could draw a subset if we wanted)
 		0,     // Offset to the first index we want to use
 		0);
-	
-	// Present the back buffer to the user
-	//  - Puts the final frame we're drawing into the window so the user can see it
-	//  - Do this exactly ONCE PER FRAME (always at the very end of the frame)
+
+	sky->Draw(context, camera);
+
 	swapChain->Present(0, 0);
 
 	// Due to the usage of a more sophisticated swap chain,

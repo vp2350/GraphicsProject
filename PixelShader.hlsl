@@ -1,19 +1,19 @@
+#include "ShaderIncludes.hlsli"
 
-// Struct representing the data we expect to receive from earlier pipeline stages
-// - Should match the output of our corresponding vertex shader
-// - The name of the struct itself is unimportant
-// - The variable names don't have to match other shaders (just the semantics)
-// - Each variable must have a semantic, which defines its usage
-struct VertexToPixel
+cbuffer ExternalData : register(b0)
 {
-	// Data type
-	//  |
-	//  |   Name          Semantic
-	//  |    |                |
-	//  v    v                v
-	float4 position		: SV_POSITION;
-	float4 color		: COLOR;
-};
+	DirectionalLight light;
+	DirectionalLight light2;
+	PointLight light3;
+	float3 ambientColor;
+	float3 cameraPosition;
+	float specExponent;
+}
+
+Texture2D diffuseTexture : register(t0);
+Texture2D RoughnessMap : register(t1);
+Texture2D MetalnessMap : register(t2);
+SamplerState basicSampler : register(s0);
 
 // --------------------------------------------------------
 // The entry point (main method) for our pixel shader
@@ -26,9 +26,36 @@ struct VertexToPixel
 // --------------------------------------------------------
 float4 main(VertexToPixel input) : SV_TARGET
 {
-	// Just return the input color
-	// - This color (like most values passing through the rasterizer) is 
-	//   interpolated for each pixel between the corresponding vertices 
-	//   of the triangle we're rendering
-	return input.color;
+	float roughness = RoughnessMap.Sample(basicSampler, input.uv).r;
+	float metalness = MetalnessMap.Sample(basicSampler, input.uv).r;
+
+	float3 textureColor = pow(diffuseTexture.Sample(basicSampler, input.uv).rgb, 2.2f);
+	float3 specularColor = lerp(F0_NON_METAL.rrr, textureColor.rgb, metalness);
+
+
+	float3 surfaceColor = input.color.rgb * textureColor.rgb;
+	input.normal = normalize(input.normal);
+
+	float3 light1Normalized = normalize(light.direction);
+	float3 light2Normalized = normalize(light2.direction);
+	float3 light3Normalized = normalize(input.worldPos - light3.position);
+
+	float3 toCameraVector = normalize(cameraPosition - input.worldPos);
+	float spec1 = MicrofacetBRDF(input.normal, light1Normalized, toCameraVector, roughness, metalness, specularColor);
+	float spec2 = MicrofacetBRDF(input.normal, light2Normalized, toCameraVector, roughness, metalness, specularColor);
+	float spec3 = MicrofacetBRDF(input.normal, light3Normalized, toCameraVector, roughness, metalness, specularColor);
+
+	float diffuseAmount = Diffuse(input.normal, -light1Normalized);
+	float diffuse2Amount = Diffuse(input.normal, -light2Normalized);
+	float diffuse3Amount = Diffuse(input.normal, -light3Normalized);
+
+	float3 finalColor = 
+		surfaceColor * ambientColor + //Ambient
+		diffuseAmount * light.color * surfaceColor + spec1.rrr +
+		diffuse2Amount * light2.color * surfaceColor + spec2.rrr + 
+		diffuse3Amount * light3.color * surfaceColor + spec3.rrr; //Directional Light
+
+
+    //return float4(input.normal, 1);
+	return float4(pow(finalColor, 1.0f/2.2f), 1);
 }
