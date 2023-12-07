@@ -1,5 +1,6 @@
-#BALL THROW
-##Vansh Pahuja
+BALL THROW
+
+Vansh Pahuja
 
 Controls:
 WASD to move around
